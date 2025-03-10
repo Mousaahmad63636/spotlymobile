@@ -1,0 +1,46 @@
+<resources>
+    <string name="app_name">Spotly Admin</string>
+    <string name="admin_portal">Admin Portal</string>
+    <string name="admin_login">Admin Login</string>
+    <string name="login_subtitle">Sign in to manage your e-commerce store</string>
+
+    <!-- Login -->
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="login">Login</string>
+    <string name="error_fields_empty">Please fill in all fields</string>
+    <string name="error_not_admin">Access denied. Only admin users can access this app.</string>
+
+    <!-- Orders -->
+    <string name="welcome_admin">Welcome, %s</string>
+    <string name="all_orders">All Orders</string>
+    <string name="pending">Pending</string>
+    <string name="confirmed">Confirmed</string>
+    <string name="shipped">Shipped</string>
+    <string name="delivered">Delivered</string>
+    <string name="cancelled">Cancelled</string>
+    <string name="no_orders_found">No orders found</string>
+    <string name="no_orders_for_filter">No orders match the current filter</string>
+    <string name="logout">Logout</string>
+    <string name="logout_confirmation">Are you sure you want to logout?</string>
+    <string name="yes">Yes</string>
+    <!-- Add this to your strings.xml file -->
+    <string name="refresh">Refresh</string>
+    <string name="no">No</string>
+
+    <!-- Order Details -->
+    <string name="customer_information">Customer Information</string>
+    <string name="name">Name</string>
+    <string name="phone">Phone</string>
+    <string name="address">Address</string>
+    <string name="special_instructions">Special Instructions</string>
+    <string name="order_items">Order Items</string>
+    <string name="order_summary">Order Summary</string>
+    <string name="subtotal">Subtotal</string>
+    <string name="discount">Discount</string>
+    <string name="shipping">Shipping</string>
+    <string name="total">Total</string>
+    <string name="call_customer">Call</string>
+    <string name="whatsapp">WhatsApp</string>
+    <string name="update_status">Update Status</string>
+</resources>
