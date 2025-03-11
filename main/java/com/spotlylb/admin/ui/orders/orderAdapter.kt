@@ -10,7 +10,7 @@ import com.spotlylb.admin.databinding.ItemOrderBinding
 import com.spotlylb.admin.models.Order
 import java.text.DecimalFormat
 
-class OrderAdapter(private val onOrderClick: (Order) -> Unit) :
+class OrderAdapter(private val onOrderClick: (Order, Int) -> Unit) :
     ListAdapter<Order, OrderAdapter.OrderViewHolder>(OrderDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OrderViewHolder {
@@ -55,9 +55,12 @@ class OrderAdapter(private val onOrderClick: (Order) -> Unit) :
                     }
                 )
 
-                // Set click listener
+                // Set click listener with position
                 root.setOnClickListener {
-                    onOrderClick(order)
+                    val position = adapterPosition
+                    if (position != RecyclerView.NO_POSITION) {
+                        onOrderClick(order, position)
+                    }
                 }
             }
         }

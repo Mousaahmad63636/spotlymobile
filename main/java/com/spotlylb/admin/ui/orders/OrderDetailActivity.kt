@@ -26,6 +26,7 @@ class OrderDetailActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_ORDER = "extra_order"
+        private const val TAG = "OrderDetailActivity"
     }
 
     private lateinit var binding: ActivityOrderDetailBinding
@@ -46,6 +47,8 @@ class OrderDetailActivity : AppCompatActivity() {
             finish()
             return
         }
+
+        Log.d(TAG, "Displaying order details for order #${order.orderId}")
 
         setupToolbar()
         displayOrderDetails()
@@ -108,7 +111,7 @@ class OrderDetailActivity : AppCompatActivity() {
         val productsList = order.products
 
         // Log product information for debugging
-        Log.d("OrderDetailActivity", "Order ID: ${order.orderId}, Products list: ${productsList?.size ?: 0} items")
+        Log.d(TAG, "Order ID: ${order.orderId}, Products list: ${productsList?.size ?: 0} items")
 
         if (productsList == null || productsList.isEmpty()) {
             // Handle null or empty products list
@@ -118,13 +121,13 @@ class OrderDetailActivity : AppCompatActivity() {
                 setPadding(16, 16, 16, 16)
             }
             binding.layoutProducts.addView(textView)
-            Log.d("OrderDetailActivity", "No products found for order ${order.orderId}")
+            Log.d(TAG, "No products found for order ${order.orderId}")
         } else {
             var displayedProductCount = 0
 
             // Loop through all products
             productsList.forEachIndexed { index, orderProduct ->
-                Log.d("OrderDetailActivity", "Processing product index $index, null product: ${orderProduct.product == null}")
+                Log.d(TAG, "Processing product index $index, null product: ${orderProduct.product == null}")
 
                 try {
                     if (orderProduct.product == null) {
@@ -155,7 +158,7 @@ class OrderDetailActivity : AppCompatActivity() {
                         binding.layoutProducts.addView(productView)
                         displayedProductCount++
 
-                        Log.d("OrderDetailActivity", "Added placeholder for null product at index $index")
+                        Log.d(TAG, "Added placeholder for null product at index $index")
                     } else {
                         // Handle valid product
                         val product = orderProduct.product
@@ -177,7 +180,7 @@ class OrderDetailActivity : AppCompatActivity() {
                                 .error(R.drawable.placeholder_image)
                                 .into(imageView)
                         } catch (e: Exception) {
-                            Log.e("OrderDetailActivity", "Error loading product image", e)
+                            Log.e(TAG, "Error loading product image", e)
                             imageView.setImageResource(R.drawable.placeholder_image)
                         }
 
@@ -192,11 +195,11 @@ class OrderDetailActivity : AppCompatActivity() {
                         binding.layoutProducts.addView(productView)
                         displayedProductCount++
 
-                        Log.d("OrderDetailActivity", "Added product '${product.name}' at index $index")
+                        Log.d(TAG, "Added product '${product.name}' at index $index")
                     }
                 } catch (e: Exception) {
                     // Catch and handle any exceptions to prevent the app from crashing
-                    Log.e("OrderDetailActivity", "Error processing product at index $index", e)
+                    Log.e(TAG, "Error processing product at index $index", e)
 
                     // Add an error indicator item
                     val errorView = android.widget.TextView(this).apply {
@@ -218,9 +221,9 @@ class OrderDetailActivity : AppCompatActivity() {
                     setPadding(16, 16, 16, 16)
                 }
                 binding.layoutProducts.addView(textView)
-                Log.d("OrderDetailActivity", "No products could be displayed despite having ${productsList.size} items")
+                Log.d(TAG, "No products could be displayed despite having ${productsList.size} items")
             } else {
-                Log.d("OrderDetailActivity", "Successfully displayed $displayedProductCount products out of ${productsList.size}")
+                Log.d(TAG, "Successfully displayed $displayedProductCount products out of ${productsList.size}")
             }
         }
 
@@ -281,6 +284,7 @@ class OrderDetailActivity : AppCompatActivity() {
 
     private fun updateOrderStatus(newStatus: String) {
         binding.progressBar.visibility = View.VISIBLE
+        Log.d(TAG, "Updating order status from ${order.status} to $newStatus")
 
         lifecycleScope.launch {
             try {
@@ -292,25 +296,53 @@ class OrderDetailActivity : AppCompatActivity() {
                 }
 
                 val apiService = ApiClient.getAuthenticatedApiService(token)
-                Log.d("OrderDetailActivity", "Updating order ${order._id} to status: $newStatus")
 
-                val response = apiService.updateOrderStatus(
+                // First update the status
+                val updateResponse = apiService.updateOrderStatus(
                     order._id,
                     StatusUpdateRequest(newStatus)
                 )
 
-                if (response.isSuccessful && response.body() != null) {
-                    order = response.body()!!
-                    // Remove runOnUiThread - already on main thread with lifecycleScope
-                    ToastUtil.showShort(this@OrderDetailActivity, "Status updated to $newStatus")
-                    displayOrderDetails() // Refresh the UI
+                if (updateResponse.isSuccessful) {
+                    // If status update was successful, fetch the complete order data
+                    val getOrderResponse = apiService.getOrderById(order._id)
+
+                    if (getOrderResponse.isSuccessful && getOrderResponse.body() != null) {
+                        // Use the complete order data from the GET request
+                        order = getOrderResponse.body()!!
+                        Log.d(TAG, "Retrieved complete order data after status update")
+                    } else {
+                        // If GET fails, try to use the update response data
+                        if (updateResponse.body() != null) {
+                            val updatedOrder = updateResponse.body()!!
+                            // If the update response has a new status but is missing other fields
+                            if (updatedOrder.status != null) {
+                                // Just update the status field while keeping other fields
+                                order = order.copy(status = updatedOrder.status)
+                                Log.d(TAG, "Using partial update data - status only")
+                            }
+                        }
+                    }
+
+                    // Create an Intent to pass back the updated order to OrdersActivity
+                    val resultIntent = Intent().apply {
+                        putExtra("UPDATED_ORDER", order)
+                        putExtra("ORDER_POSITION", intent.getIntExtra("ORDER_POSITION", -1))
+                    }
+                    setResult(RESULT_OK, resultIntent)
+
+                    // Update the UI
+                    runOnUiThread {
+                        ToastUtil.showShort(this@OrderDetailActivity, "Status updated to $newStatus")
+                        displayOrderDetails() // Refresh the UI with updated order data
+                    }
                 } else {
-                    val errorBody = response.errorBody()?.string() ?: "Unknown error"
-                    Log.e("OrderDetailActivity", "Failed response: $errorBody")
-                    ToastUtil.showShort(this@OrderDetailActivity, "Failed to update status: ${response.code()}")
+                    val errorBody = updateResponse.errorBody()?.string() ?: "Unknown error"
+                    Log.e(TAG, "Failed response: $errorBody")
+                    ToastUtil.showShort(this@OrderDetailActivity, "Failed to update status: ${updateResponse.code()}")
                 }
             } catch (e: Exception) {
-                Log.e("OrderDetailActivity", "Error updating status", e)
+                Log.e(TAG, "Error updating status", e)
                 ToastUtil.showShort(this@OrderDetailActivity, "Error: ${e.message}")
             } finally {
                 binding.progressBar.visibility = View.GONE
@@ -334,6 +366,7 @@ class OrderDetailActivity : AppCompatActivity() {
 
             startActivity(intent)
         } catch (e: Exception) {
+            Log.e(TAG, "Error opening WhatsApp", e)
             ToastUtil.showShort(this, "Error opening WhatsApp: ${e.message}")
         }
     }

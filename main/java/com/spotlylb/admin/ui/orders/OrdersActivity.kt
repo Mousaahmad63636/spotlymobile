@@ -1,11 +1,13 @@
 package com.spotlylb.admin.ui.orders
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -18,12 +20,39 @@ import com.spotlylb.admin.utils.SessionManager
 import com.spotlylb.admin.utils.ToastUtil
 
 class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppliedListener {
+    companion object {
+        private const val TAG = "OrdersActivity"
+    }
 
     private lateinit var binding: ActivityOrdersBinding
     private val viewModel: OrdersViewModel by viewModels()
     private lateinit var orderAdapter: OrderAdapter
     private lateinit var sessionManager: SessionManager
     private var currentFilters = OrderFilters()
+
+    // Define the activity result launcher at the class level
+    private val orderDetailLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val updatedOrder = result.data?.getParcelableExtra<Order>("UPDATED_ORDER")
+            val position = result.data?.getIntExtra("ORDER_POSITION", -1) ?: -1
+
+            Log.d(TAG, "Received result from OrderDetailActivity. Updated order: ${updatedOrder?._id}, position: $position")
+
+            if (updatedOrder != null) {
+                // Refresh only the specific order that was updated
+                viewModel.updateOrderInList(updatedOrder)
+                Log.d(TAG, "Updated specific order in list: ${updatedOrder.orderId}, status: ${updatedOrder.status}")
+            } else {
+                // Fallback to refreshing the entire list
+                Log.d(TAG, "No updated order received, refreshing entire list")
+                loadOrders()
+            }
+        } else {
+            Log.d(TAG, "OrderDetailActivity returned with result code: ${result.resultCode}")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,12 +73,18 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
         intent?.let { handleNotificationIntent(it) }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // This ensures the list is refreshed when returning from any screen
+        Log.d(TAG, "onResume called, refreshing orders")
+        loadOrders()
+    }
+
     private fun handleNotificationIntent(intent: Intent) {
         val orderId = intent.getStringExtra("OPEN_ORDER_ID")
         if (orderId != null) {
-            // Load the specific order and open its details
-            Log.d("OrdersActivity", "Opening order from notification: $orderId")
-            // Implement logic to open the specific order
+            Log.d(TAG, "Opening order from notification: $orderId")
+            // Implementation for opening specific order would go here
         }
     }
 
@@ -61,39 +96,46 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
         binding.tvAdminName.text = getString(R.string.welcome_admin, sessionManager.getUserName())
 
         binding.swipeRefresh.setOnRefreshListener {
+            Log.d(TAG, "SwipeRefresh triggered, refreshing orders")
             loadOrders()
         }
 
         // Update filter chip click listeners
         binding.chipAll.setOnClickListener {
+            Log.d(TAG, "All status filter selected")
             currentFilters = currentFilters.copy(status = null)
             viewModel.applyFilters(currentFilters)
         }
         binding.chipPending.setOnClickListener {
+            Log.d(TAG, "Pending status filter selected")
             currentFilters = currentFilters.copy(status = "pending")
             viewModel.applyFilters(currentFilters)
         }
         binding.chipConfirmed.setOnClickListener {
+            Log.d(TAG, "Confirmed status filter selected")
             currentFilters = currentFilters.copy(status = "confirmed")
             viewModel.applyFilters(currentFilters)
         }
         binding.chipShipped.setOnClickListener {
+            Log.d(TAG, "Shipped status filter selected")
             currentFilters = currentFilters.copy(status = "shipped")
             viewModel.applyFilters(currentFilters)
         }
         binding.chipDelivered.setOnClickListener {
+            Log.d(TAG, "Delivered status filter selected")
             currentFilters = currentFilters.copy(status = "delivered")
             viewModel.applyFilters(currentFilters)
         }
         binding.chipCancelled.setOnClickListener {
+            Log.d(TAG, "Cancelled status filter selected")
             currentFilters = currentFilters.copy(status = "cancelled")
             viewModel.applyFilters(currentFilters)
         }
     }
 
     private fun setupRecyclerView() {
-        orderAdapter = OrderAdapter { order ->
-            navigateToOrderDetail(order)
+        orderAdapter = OrderAdapter { order, position ->
+            navigateToOrderDetail(order, position)
         }
 
         binding.recyclerOrders.apply {
@@ -109,6 +151,8 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
                     binding.swipeRefresh.isRefreshing = false
                     binding.progressBar.visibility = View.GONE
 
+                    Log.d(TAG, "Received ${result.orders.size} orders from API")
+
                     if (result.orders.isEmpty()) {
                         binding.textNoOrders.visibility = View.VISIBLE
                     } else {
@@ -120,6 +164,8 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
                     binding.progressBar.visibility = View.GONE
                     binding.textNoOrders.visibility = View.VISIBLE
                     binding.textNoOrders.text = result.message
+
+                    Log.e(TAG, "Error fetching orders: ${result.message}")
                     ToastUtil.showLong(this, result.message)
                 }
                 is OrdersViewModel.OrdersResult.Loading -> {
@@ -127,11 +173,13 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
                         binding.progressBar.visibility = View.VISIBLE
                     }
                     binding.textNoOrders.visibility = View.GONE
+                    Log.d(TAG, "Loading orders...")
                 }
             }
         }
 
         viewModel.filteredOrders.observe(this) { filteredOrders ->
+            Log.d(TAG, "Filtered orders updated: ${filteredOrders.size} orders match current filters")
             orderAdapter.submitList(filteredOrders)
 
             if (filteredOrders.isEmpty()) {
@@ -144,14 +192,29 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
     }
 
     private fun loadOrders() {
-        viewModel.fetchOrders(sessionManager.getAuthToken() ?: "")
+        Log.d(TAG, "Loading orders from API")
+        val token = sessionManager.getAuthToken()
+        if (token.isNullOrEmpty()) {
+            Log.e(TAG, "Auth token is null or empty")
+            ToastUtil.showShort(this, "Please log in again")
+            navigateToLogin()
+            return
+        }
+        viewModel.fetchOrders(token)
     }
 
-    private fun navigateToOrderDetail(order: Order) {
+    private fun navigateToOrderDetail(order: Order, position: Int) {
+        Log.d(TAG, "Navigating to order details for order #${order.orderId} at position $position")
         val intent = Intent(this, OrderDetailActivity::class.java).apply {
             putExtra(OrderDetailActivity.EXTRA_ORDER, order)
+            putExtra("ORDER_POSITION", position)
         }
-        startActivity(intent)
+        orderDetailLauncher.launch(intent)
+    }
+
+    private fun navigateToLogin() {
+        startActivity(Intent(this, LoginActivity::class.java))
+        finish()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -166,6 +229,7 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
                 true
             }
             R.id.action_refresh -> {
+                Log.d(TAG, "Refresh menu item selected")
                 loadOrders()
                 true
             }
@@ -184,6 +248,7 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
     }
 
     override fun onFiltersApplied(filters: OrderFilters) {
+        Log.d(TAG, "Filters applied: status=${filters.status}, orderId=${filters.orderId}")
         currentFilters = filters
         viewModel.applyFilters(filters)
 
@@ -204,6 +269,7 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
             .setTitle(R.string.logout)
             .setMessage(R.string.logout_confirmation)
             .setPositiveButton(R.string.yes) { _, _ ->
+                Log.d(TAG, "User confirmed logout")
                 sessionManager.clearSession()
                 startActivity(Intent(this, LoginActivity::class.java))
                 finish()
