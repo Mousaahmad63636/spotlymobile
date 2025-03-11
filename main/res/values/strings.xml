@@ -28,7 +28,27 @@
     <string name="refresh">Refresh</string>
     <string name="no">No</string>
     <string name="order_notification_channel_id">order_notifications</string>
+    <string name="filter">Filter</string>
+    <string name="filter_orders">Filter Orders</string>
+    <string name="order_id">Order ID</string>
+    <string name="status">Status</string>
+    <string name="date_range">Date Range</string>
+    <string name="from_date">From</string>
+    <string name="to_date">To</string>
+    <string name="sort_by">Sort By</string>
+    <string name="newest_first">Newest First</string>
+    <string name="oldest_first">Oldest First</string>
+    <string name="apply">Apply</string>
+    <string name="reset">Reset</string>
 
+    <string-array name="order_status_options">
+        <item>All Orders</item>
+        <item>Pending</item>
+        <item>Confirmed</item>
+        <item>Shipped</item>
+        <item>Delivered</item>
+        <item>Cancelled</item>
+    </string-array>
     <!-- Order Details -->
     <string name="customer_information">Customer Information</string>
     <string name="name">Name</string>

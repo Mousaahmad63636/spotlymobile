@@ -344,28 +344,31 @@ class OrderDetailActivity : AppCompatActivity() {
             productsList
                 .filter { it.product != null } // Filter out null products
                 .joinToString("\n") { orderProduct ->
-                    "${orderProduct.product?.name ?: "Unknown product"} × ${orderProduct.quantity}"
+                    val productName = orderProduct.product?.name ?: "Unknown product"
+                    val quantity = orderProduct.quantity
+                    val unitPrice = orderProduct.product?.price ?: 0.0
+                    val totalPrice = unitPrice * quantity
+
+                    "📦 ${productName} - ${decimalFormat.format(unitPrice)} × ${quantity} = ${decimalFormat.format(totalPrice)}"
                 }
         } else {
-            "Order details not available"
+            "تفاصيل الطلب غير متوفرة"
         }
 
         return """
-        *Order Status Update*
+        ✨ الرجاء تأكيد طلبك ✨  
+        ━━━━━━━━━━━━━━  
+        *مرحباً ${order.customerName} ! 👋  
+        يسعدنا إبلاغك بأننا تلقينا طلبك بنجاح ✅  
+        📌 رقم الطلب: ${order.orderId} 
+        ━━━━━━━━━━━━━━  
+        🛍 تفاصيل الطلب:  
+        ${orderItems}
         
-        Hello ${order.customerName},
-        
-        This is an update for your order #${order.orderId}.
-        Current status: *${order.status}*
-        
-        *Order Details:*
-        $orderItems
-        
-        Total: ${decimalFormat.format(order.totalAmount)}
-        
-        If you have any questions, please let us know.
-        
-        Thank you!
+        🚚 رسوم التوصيل: ${decimalFormat.format(order.shippingFee)}
+        💰 المجموع النهائي مع التوصيل: ${decimalFormat.format(order.totalAmount)}
+        ━━━━━━━━━━━━━━  
+        📩 *يرجى الرد بـ "تم" لتأكيد طلبك.
     """.trimIndent()
     }
 

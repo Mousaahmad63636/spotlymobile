@@ -17,12 +17,13 @@ import com.spotlylb.admin.ui.auth.LoginActivity
 import com.spotlylb.admin.utils.SessionManager
 import com.spotlylb.admin.utils.ToastUtil
 
-class OrdersActivity : AppCompatActivity() {
+class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppliedListener {
 
     private lateinit var binding: ActivityOrdersBinding
     private val viewModel: OrdersViewModel by viewModels()
     private lateinit var orderAdapter: OrderAdapter
     private lateinit var sessionManager: SessionManager
+    private var currentFilters = OrderFilters()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,7 +50,6 @@ class OrdersActivity : AppCompatActivity() {
             // Load the specific order and open its details
             Log.d("OrdersActivity", "Opening order from notification: $orderId")
             // Implement logic to open the specific order
-            // This could be navigating to OrderDetailActivity with the order ID
         }
     }
 
@@ -64,13 +64,31 @@ class OrdersActivity : AppCompatActivity() {
             loadOrders()
         }
 
-        // Filter buttons
-        binding.chipAll.setOnClickListener { viewModel.filterOrders(null) }
-        binding.chipPending.setOnClickListener { viewModel.filterOrders("pending") }
-        binding.chipConfirmed.setOnClickListener { viewModel.filterOrders("confirmed") }
-        binding.chipShipped.setOnClickListener { viewModel.filterOrders("shipped") }
-        binding.chipDelivered.setOnClickListener { viewModel.filterOrders("delivered") }
-        binding.chipCancelled.setOnClickListener { viewModel.filterOrders("cancelled") }
+        // Update filter chip click listeners
+        binding.chipAll.setOnClickListener {
+            currentFilters = currentFilters.copy(status = null)
+            viewModel.applyFilters(currentFilters)
+        }
+        binding.chipPending.setOnClickListener {
+            currentFilters = currentFilters.copy(status = "pending")
+            viewModel.applyFilters(currentFilters)
+        }
+        binding.chipConfirmed.setOnClickListener {
+            currentFilters = currentFilters.copy(status = "confirmed")
+            viewModel.applyFilters(currentFilters)
+        }
+        binding.chipShipped.setOnClickListener {
+            currentFilters = currentFilters.copy(status = "shipped")
+            viewModel.applyFilters(currentFilters)
+        }
+        binding.chipDelivered.setOnClickListener {
+            currentFilters = currentFilters.copy(status = "delivered")
+            viewModel.applyFilters(currentFilters)
+        }
+        binding.chipCancelled.setOnClickListener {
+            currentFilters = currentFilters.copy(status = "cancelled")
+            viewModel.applyFilters(currentFilters)
+        }
     }
 
     private fun setupRecyclerView() {
@@ -95,7 +113,6 @@ class OrdersActivity : AppCompatActivity() {
                         binding.textNoOrders.visibility = View.VISIBLE
                     } else {
                         binding.textNoOrders.visibility = View.GONE
-                        orderAdapter.submitList(result.orders)
                     }
                 }
                 is OrdersViewModel.OrdersResult.Error -> {
@@ -137,13 +154,17 @@ class OrdersActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_orders, menu)
         return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_filter -> {
+                showFilterDialog()
+                true
+            }
             R.id.action_refresh -> {
                 loadOrders()
                 true
@@ -153,6 +174,28 @@ class OrdersActivity : AppCompatActivity() {
                 true
             }
             else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun showFilterDialog() {
+        val filterDialog = OrderFilterDialogFragment.newInstance(currentFilters)
+        filterDialog.setFilterAppliedListener(this)
+        filterDialog.show(supportFragmentManager, OrderFilterDialogFragment.TAG)
+    }
+
+    override fun onFiltersApplied(filters: OrderFilters) {
+        currentFilters = filters
+        viewModel.applyFilters(filters)
+
+        // Update chip selection based on status filter
+        binding.chipGroup.clearCheck()
+        when (filters.status?.lowercase()) {
+            null -> binding.chipAll.isChecked = true
+            "pending" -> binding.chipPending.isChecked = true
+            "confirmed" -> binding.chipConfirmed.isChecked = true
+            "shipped" -> binding.chipShipped.isChecked = true
+            "delivered" -> binding.chipDelivered.isChecked = true
+            "cancelled" -> binding.chipCancelled.isChecked = true
         }
     }
 
