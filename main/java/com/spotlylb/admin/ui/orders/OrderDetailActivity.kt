@@ -88,9 +88,8 @@ class OrderDetailActivity : AppCompatActivity() {
         binding.tvSubtotal.text = decimalFormat.format(order.subtotal)
         binding.tvShippingFee.text = decimalFormat.format(order.shippingFee)
 
-        // Replace this code in displayOrderDetails()
-// Promo discount
-        val promoDiscount = order.promoDiscount // Create a local copy
+        // Promo discount
+        val promoDiscount = order.promoDiscount
         if (promoDiscount != null && promoDiscount > 0) {
             binding.layoutDiscount.visibility = View.VISIBLE
             val discountAmount = (order.subtotal * promoDiscount) / 100
@@ -104,52 +103,129 @@ class OrderDetailActivity : AppCompatActivity() {
 
         binding.tvTotal.text = decimalFormat.format(order.totalAmount)
 
-        // Products
-        // Products
+        // Enhanced Products Section
         binding.layoutProducts.removeAllViews()
-        val productsList = order.products // Create a local immutable copy
-        if (productsList != null) {  // Now we can safely check the local copy
-            productsList.forEach { orderProduct ->
-                // Skip if product is null
-                if (orderProduct.product == null) return@forEach
+        val productsList = order.products
 
-                val product = orderProduct.product
-                val productView = layoutInflater.inflate(
-                    R.layout.item_order_product,
-                    binding.layoutProducts,
-                    false
-                )
+        // Log product information for debugging
+        Log.d("OrderDetailActivity", "Order ID: ${order.orderId}, Products list: ${productsList?.size ?: 0} items")
 
-                // Set product image
-                val imageView =
-                    productView.findViewById<com.google.android.material.imageview.ShapeableImageView>(
-                        R.id.ivProduct
-                    )
-                Glide.with(this)
-                    .load(product.getFullImageUrl())
-                    .placeholder(R.drawable.placeholder_image)
-                    .error(R.drawable.placeholder_image)
-                    .into(imageView)
-
-                // Set product details
-                productView.findViewById<android.widget.TextView>(R.id.tvProductName).text =
-                    product.name
-                productView.findViewById<android.widget.TextView>(R.id.tvProductPrice).text =
-                    "${decimalFormat.format(product.price)} × ${orderProduct.quantity}"
-                productView.findViewById<android.widget.TextView>(R.id.tvProductTotal).text =
-                    decimalFormat.format(product.price * orderProduct.quantity)
-
-                binding.layoutProducts.addView(productView)
-            }
-        } else {
-            // Add a message or handle empty product list
+        if (productsList == null || productsList.isEmpty()) {
+            // Handle null or empty products list
             val textView = android.widget.TextView(this).apply {
-                text = "No product details available"
+                text = "No products in this order"
                 textSize = 16f
                 setPadding(16, 16, 16, 16)
             }
             binding.layoutProducts.addView(textView)
+            Log.d("OrderDetailActivity", "No products found for order ${order.orderId}")
+        } else {
+            var displayedProductCount = 0
+
+            // Loop through all products
+            productsList.forEachIndexed { index, orderProduct ->
+                Log.d("OrderDetailActivity", "Processing product index $index, null product: ${orderProduct.product == null}")
+
+                try {
+                    if (orderProduct.product == null) {
+                        // Instead of skipping, show a placeholder for null products
+                        val productView = layoutInflater.inflate(
+                            R.layout.item_order_product,
+                            binding.layoutProducts,
+                            false
+                        )
+
+                        val imageView = productView.findViewById<com.google.android.material.imageview.ShapeableImageView>(
+                            R.id.ivProduct
+                        )
+
+                        // Use placeholder for image
+                        Glide.with(this)
+                            .load(R.drawable.placeholder_image)
+                            .into(imageView)
+
+                        // Set placeholder text for missing product
+                        productView.findViewById<android.widget.TextView>(R.id.tvProductName).text =
+                            "Product (details unavailable)"
+                        productView.findViewById<android.widget.TextView>(R.id.tvProductPrice).text =
+                            "Quantity: ${orderProduct.quantity}"
+                        productView.findViewById<android.widget.TextView>(R.id.tvProductTotal).text =
+                            "N/A"
+
+                        binding.layoutProducts.addView(productView)
+                        displayedProductCount++
+
+                        Log.d("OrderDetailActivity", "Added placeholder for null product at index $index")
+                    } else {
+                        // Handle valid product
+                        val product = orderProduct.product
+                        val productView = layoutInflater.inflate(
+                            R.layout.item_order_product,
+                            binding.layoutProducts,
+                            false
+                        )
+
+                        // Set product image with error handling
+                        val imageView = productView.findViewById<com.google.android.material.imageview.ShapeableImageView>(
+                            R.id.ivProduct
+                        )
+
+                        try {
+                            Glide.with(this)
+                                .load(product.getFullImageUrl())
+                                .placeholder(R.drawable.placeholder_image)
+                                .error(R.drawable.placeholder_image)
+                                .into(imageView)
+                        } catch (e: Exception) {
+                            Log.e("OrderDetailActivity", "Error loading product image", e)
+                            imageView.setImageResource(R.drawable.placeholder_image)
+                        }
+
+                        // Set product details
+                        productView.findViewById<android.widget.TextView>(R.id.tvProductName).text =
+                            product.name
+                        productView.findViewById<android.widget.TextView>(R.id.tvProductPrice).text =
+                            "${decimalFormat.format(product.price)} × ${orderProduct.quantity}"
+                        productView.findViewById<android.widget.TextView>(R.id.tvProductTotal).text =
+                            decimalFormat.format(product.price * orderProduct.quantity)
+
+                        binding.layoutProducts.addView(productView)
+                        displayedProductCount++
+
+                        Log.d("OrderDetailActivity", "Added product '${product.name}' at index $index")
+                    }
+                } catch (e: Exception) {
+                    // Catch and handle any exceptions to prevent the app from crashing
+                    Log.e("OrderDetailActivity", "Error processing product at index $index", e)
+
+                    // Add an error indicator item
+                    val errorView = android.widget.TextView(this).apply {
+                        text = "Error displaying item ${index + 1}"
+                        setTextColor(Color.RED)
+                        textSize = 14f
+                        setPadding(16, 8, 16, 8)
+                    }
+                    binding.layoutProducts.addView(errorView)
+                    displayedProductCount++
+                }
+            }
+
+            // If we didn't display any products despite having a non-empty list
+            if (displayedProductCount == 0) {
+                val textView = android.widget.TextView(this).apply {
+                    text = "No products could be displayed"
+                    textSize = 16f
+                    setPadding(16, 16, 16, 16)
+                }
+                binding.layoutProducts.addView(textView)
+                Log.d("OrderDetailActivity", "No products could be displayed despite having ${productsList.size} items")
+            } else {
+                Log.d("OrderDetailActivity", "Successfully displayed $displayedProductCount products out of ${productsList.size}")
+            }
         }
+
+        // Update the action buttons based on status
+        updateActionsBasedOnStatus()
     }
 
     private fun updateActionsBasedOnStatus() {

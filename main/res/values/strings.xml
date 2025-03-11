@@ -27,6 +27,7 @@
     <!-- Add this to your strings.xml file -->
     <string name="refresh">Refresh</string>
     <string name="no">No</string>
+    <string name="order_notification_channel_id">order_notifications</string>
 
     <!-- Order Details -->
     <string name="customer_information">Customer Information</string>

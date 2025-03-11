@@ -27,4 +27,7 @@ interface ApiService {
         @Path("id") orderId: String,
         @Body request: StatusUpdateRequest
     ): Response<Order>
+
+    @PUT("users/fcm-token")
+    suspend fun updateFcmToken(@Body request: Map<String, String>): Response<Map<String, String>>
 }

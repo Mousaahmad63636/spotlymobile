@@ -2,6 +2,7 @@ package com.spotlylb.admin.ui.orders
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -34,6 +35,22 @@ class OrdersActivity : AppCompatActivity() {
         setupRecyclerView()
         observeViewModel()
         loadOrders()
+        handleNotificationIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        intent?.let { handleNotificationIntent(it) }
+    }
+
+    private fun handleNotificationIntent(intent: Intent) {
+        val orderId = intent.getStringExtra("OPEN_ORDER_ID")
+        if (orderId != null) {
+            // Load the specific order and open its details
+            Log.d("OrdersActivity", "Opening order from notification: $orderId")
+            // Implement logic to open the specific order
+            // This could be navigating to OrderDetailActivity with the order ID
+        }
     }
 
     private fun setupUI() {
