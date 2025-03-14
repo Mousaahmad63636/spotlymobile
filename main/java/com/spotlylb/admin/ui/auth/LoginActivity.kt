@@ -2,6 +2,7 @@ package com.spotlylb.admin.ui.auth
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Looper
 import android.util.Log
 import android.view.View
 import androidx.activity.viewModels
@@ -16,6 +17,7 @@ import com.spotlylb.admin.ui.orders.OrdersActivity
 import com.spotlylb.admin.utils.SessionManager
 import com.spotlylb.admin.utils.ToastUtil
 import kotlinx.coroutines.launch
+import java.util.logging.Handler
 
 class LoginActivity : AppCompatActivity() {
 
@@ -55,8 +57,12 @@ class LoginActivity : AppCompatActivity() {
             when (result) {
                 is LoginViewModel.LoginResult.Success -> {
                     binding.progressBar.visibility = View.GONE
-                    // Add this line
+                    // Register for notifications
                     registerForNotifications()
+                    // Wait a moment and verify the token was saved
+                    android.os.Handler(Looper.getMainLooper()).postDelayed({
+                        verifyFcmToken()
+                    }, 3000) // 3 second delay to ensure token is processed
                     navigateToOrdersScreen()
                 }
                 is LoginViewModel.LoginResult.Error -> {
@@ -92,8 +98,38 @@ class LoginActivity : AppCompatActivity() {
             updateFcmTokenOnServer(token)
         }
     }
+    // main/java/com/spotlylb/admin/ui/auth/LoginActivity.kt
+    private fun verifyFcmToken() {
+        lifecycleScope.launch {
+            try {
+                val authToken = sessionManager.getAuthToken() ?: return@launch
+                Log.d("FCM", "Verifying FCM token with auth token: ${authToken.take(10)}...")
 
+                val apiService = ApiClient.getAuthenticatedApiService(authToken)
 
+                // Attempt to get the user profile to check if FCM token exists
+                val response = apiService.getProfile()
+
+                if (response.isSuccessful && response.body() != null) {
+                    val user = response.body()!!
+                    val fcmToken = user.fcmToken
+
+                    Log.d("FCM", "Current FCM token on server: ${fcmToken?.take(10) ?: "null"}")
+
+                    if (fcmToken.isNullOrEmpty()) {
+                        Log.w("FCM", "FCM token is empty on server, registering again")
+                        registerForNotifications()
+                    } else {
+                        Log.d("FCM", "FCM token already exists on server")
+                    }
+                } else {
+                    Log.e("FCM", "Failed to get profile: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e("FCM", "Error verifying FCM token", e)
+            }
+        }
+    }
     private fun updateFcmTokenOnServer(token: String) {
         lifecycleScope.launch {
             try {
