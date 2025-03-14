@@ -18,6 +18,9 @@ import com.spotlylb.admin.models.Order
 import com.spotlylb.admin.ui.auth.LoginActivity
 import com.spotlylb.admin.utils.SessionManager
 import com.spotlylb.admin.utils.ToastUtil
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 
 class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppliedListener {
     companion object {
@@ -53,7 +56,40 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
             Log.d(TAG, "OrderDetailActivity returned with result code: ${result.resultCode}")
         }
     }
+    private val orderUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                "com.spotlylb.admin.NEW_ORDER" -> {
+                    Log.d(TAG, "Received broadcast for new order")
 
+                    // Show a toast notification
+                    ToastUtil.showShort(this@OrdersActivity, "New order received!")
+
+                    // Refresh the orders list
+                    loadOrders()
+
+                    // Try to get the specific order ID
+                    val orderId = intent.getStringExtra("orderId")
+                    orderId?.let {
+                        Log.d(TAG, "New order ID: $it")
+                        // You could open the specific order here if desired
+                    }
+                }
+                "com.spotlylb.admin.ORDER_UPDATED" -> {
+                    Log.d(TAG, "Received broadcast for order update")
+
+                    // Refresh the orders list
+                    loadOrders()
+
+                    // Try to get the specific order ID
+                    val orderId = intent.getStringExtra("orderId")
+                    orderId?.let {
+                        Log.d(TAG, "Updated order ID: $it")
+                    }
+                }
+            }
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityOrdersBinding.inflate(layoutInflater)
@@ -66,8 +102,22 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
         observeViewModel()
         loadOrders()
         handleNotificationIntent(intent)
+
+        // Register the broadcast receiver
+        val filter = IntentFilter().apply {
+            addAction("com.spotlylb.admin.NEW_ORDER")
+            addAction("com.spotlylb.admin.ORDER_UPDATED")
+        }
+        registerReceiver(orderUpdateReceiver, filter)
     }
 
+
+    // Add the onDestroy method to unregister the receiver
+    override fun onDestroy() {
+        // Unregister the broadcast receiver
+        unregisterReceiver(orderUpdateReceiver)
+        super.onDestroy()
+    }
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         intent?.let { handleNotificationIntent(it) }
@@ -84,7 +134,19 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
         val orderId = intent.getStringExtra("OPEN_ORDER_ID")
         if (orderId != null) {
             Log.d(TAG, "Opening order from notification: $orderId")
-            // Implementation for opening specific order would go here
+
+            // Wait for orders to load, then find and open the specified order
+            viewModel.orders.observe(this) { result ->
+                if (result is OrdersViewModel.OrdersResult.Success) {
+                    // Find the order with matching ID
+                    val order = result.orders.find { it._id == orderId || it.orderId == orderId }
+                    order?.let {
+                        // Once found, remove this observer and open the order
+                        viewModel.orders.removeObservers(this)
+                        navigateToOrderDetail(it, -1)
+                    }
+                }
+            }
         }
     }
 

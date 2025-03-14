@@ -93,22 +93,28 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
+
     private fun updateFcmTokenOnServer(token: String) {
         lifecycleScope.launch {
             try {
                 val authToken = sessionManager.getAuthToken() ?: return@launch
+                Log.d("FCM", "Using auth token: ${authToken.take(10)}...")
+
                 val apiService = ApiClient.getAuthenticatedApiService(authToken)
 
-                // Uncomment this when you've added the API endpoint
-                // val response = apiService.updateFcmToken(mapOf("fcmToken" to token))
+                Log.d("FCM", "Sending FCM token to server: ${token.take(10)}...")
+                val response = apiService.updateFcmToken(mapOf("fcmToken" to token))
 
-                Log.d("FCM", "Token updated on server")
+                if (response.isSuccessful) {
+                    Log.d("FCM", "Token updated on server successfully")
+                } else {
+                    Log.e("FCM", "Failed to update token: ${response.code()} - ${response.message()}")
+                }
             } catch (e: Exception) {
                 Log.e("FCM", "Failed to update token on server", e)
             }
         }
     }
-
     private fun navigateToOrdersScreen() {
         val intent = Intent(this, OrdersActivity::class.java)
         startActivity(intent)

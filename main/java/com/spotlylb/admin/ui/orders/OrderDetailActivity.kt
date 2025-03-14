@@ -2,11 +2,14 @@ package com.spotlylb.admin.ui.orders
 
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.PorterDuff
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.MenuItem
 import android.view.View
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -113,6 +116,10 @@ class OrderDetailActivity : AppCompatActivity() {
         // Log product information for debugging
         Log.d(TAG, "Order ID: ${order.orderId}, Products list: ${productsList?.size ?: 0} items")
 
+        if (productsList != null && productsList.isNotEmpty()) {
+            Log.d(TAG, "First product structure: ${productsList[0]}")
+        }
+
         if (productsList == null || productsList.isEmpty()) {
             // Handle null or empty products list
             val textView = android.widget.TextView(this).apply {
@@ -155,6 +162,10 @@ class OrderDetailActivity : AppCompatActivity() {
                         productView.findViewById<android.widget.TextView>(R.id.tvProductTotal).text =
                             "N/A"
 
+                        // Hide variant containers for missing products
+                        productView.findViewById<LinearLayout>(R.id.colorContainer).visibility = View.GONE
+                        productView.findViewById<TextView>(R.id.tvSize).visibility = View.GONE
+
                         binding.layoutProducts.addView(productView)
                         displayedProductCount++
 
@@ -187,10 +198,67 @@ class OrderDetailActivity : AppCompatActivity() {
                         // Set product details
                         productView.findViewById<android.widget.TextView>(R.id.tvProductName).text =
                             product.name
+
+                        // Handle color variant if available
+                        val colorContainer = productView.findViewById<LinearLayout>(R.id.colorContainer)
+                        val colorIndicator = productView.findViewById<View>(R.id.colorIndicator)
+                        val tvColorName = productView.findViewById<TextView>(R.id.tvColorName)
+
+                        // Check color - using when for cleaner code
+                        val selectedColor = when {
+                            !orderProduct.selectedColor.isNullOrEmpty() -> orderProduct.selectedColor
+                            product.colors != null && product.colors.isNotEmpty() -> product.colors[0]
+                            else -> null
+                        }
+
+                        if (selectedColor != null) {
+                            colorContainer.visibility = View.VISIBLE
+                            tvColorName.text = selectedColor
+
+                            // Try to set the color indicator
+                            try {
+                                val colorValue = if (selectedColor.startsWith("#")) {
+                                    Color.parseColor(selectedColor)
+                                } else {
+                                    // For named colors like "RED", "BLUE", etc.
+                                    getColorValue(selectedColor)
+                                }
+                                val drawable = colorIndicator.background.mutate()
+                                drawable.setColorFilter(colorValue, PorterDuff.Mode.SRC_ATOP)
+                                colorIndicator.background = drawable
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error parsing color: $selectedColor", e)
+                                // Use a default color if parsing fails
+                                colorIndicator.setBackgroundResource(R.drawable.circular_color_indicator)
+                            }
+                        } else {
+                            colorContainer.visibility = View.GONE
+                        }
+
+                        // Handle size variant if available
+                        val tvSize = productView.findViewById<TextView>(R.id.tvSize)
+                        val selectedSize = when {
+                            !orderProduct.selectedSize.isNullOrEmpty() -> orderProduct.selectedSize
+                            product.sizes != null && product.sizes.isNotEmpty() -> product.sizes[0]
+                            else -> null
+                        }
+
+                        if (selectedSize != null) {
+                            tvSize.visibility = View.VISIBLE
+                            tvSize.text = "Size: $selectedSize"
+                        } else {
+                            tvSize.visibility = View.GONE
+                        }
+
+                        // Calculate price - use variant price if available, otherwise use product price
+                        val unitPrice = orderProduct.price ?: product.price
+                        val quantity = orderProduct.quantity
+                        val totalPrice = unitPrice * quantity
+
                         productView.findViewById<android.widget.TextView>(R.id.tvProductPrice).text =
-                            "${decimalFormat.format(product.price)} × ${orderProduct.quantity}"
+                            "${decimalFormat.format(unitPrice)} × $quantity"
                         productView.findViewById<android.widget.TextView>(R.id.tvProductTotal).text =
-                            decimalFormat.format(product.price * orderProduct.quantity)
+                            decimalFormat.format(totalPrice)
 
                         binding.layoutProducts.addView(productView)
                         displayedProductCount++
@@ -229,6 +297,28 @@ class OrderDetailActivity : AppCompatActivity() {
 
         // Update the action buttons based on status
         updateActionsBasedOnStatus()
+    }
+
+    // Helper function to convert color names to color values
+    private fun getColorValue(colorName: String): Int {
+        return when (colorName.uppercase()) {
+            "RED" -> Color.RED
+            "GREEN" -> Color.GREEN
+            "BLUE" -> Color.BLUE
+            "BLACK" -> Color.BLACK
+            "WHITE" -> Color.WHITE
+            "YELLOW" -> Color.YELLOW
+            "GRAY", "GREY" -> Color.GRAY
+            "CYAN" -> Color.CYAN
+            "MAGENTA" -> Color.MAGENTA
+            "PINK" -> Color.parseColor("#FFC0CB")
+            "PURPLE" -> Color.parseColor("#800080")
+            "ORANGE" -> Color.parseColor("#FFA500")
+            "BROWN" -> Color.parseColor("#A52A2A")
+            "NAVY" -> Color.parseColor("#000080")
+            "TEAL" -> Color.parseColor("#008080")
+            else -> Color.DKGRAY // Default color if name not recognized
+        }
     }
 
     private fun updateActionsBasedOnStatus() {
@@ -377,12 +467,40 @@ class OrderDetailActivity : AppCompatActivity() {
             productsList
                 .filter { it.product != null } // Filter out null products
                 .joinToString("\n") { orderProduct ->
-                    val productName = orderProduct.product?.name ?: "Unknown product"
+                    val product = orderProduct.product!!
+                    val productName = product.name
                     val quantity = orderProduct.quantity
-                    val unitPrice = orderProduct.product?.price ?: 0.0
+                    val unitPrice = orderProduct.price ?: product.price
                     val totalPrice = unitPrice * quantity
 
-                    "📦 ${productName} - ${decimalFormat.format(unitPrice)} × ${quantity} = ${decimalFormat.format(totalPrice)}"
+                    // Include variant details in the message if available
+                    val variantDetails = mutableListOf<String>()
+
+                    // Check color - use when for cleaner code
+                    val color = when {
+                        !orderProduct.selectedColor.isNullOrEmpty() -> orderProduct.selectedColor
+                        product.colors != null && product.colors.isNotEmpty() -> product.colors[0]
+                        else -> null
+                    }
+
+                    if (color != null) variantDetails.add("Color: $color")
+
+                    // Check size - use when for cleaner code
+                    val size = when {
+                        !orderProduct.selectedSize.isNullOrEmpty() -> orderProduct.selectedSize
+                        product.sizes != null && product.sizes.isNotEmpty() -> product.sizes[0]
+                        else -> null
+                    }
+
+                    if (size != null) variantDetails.add("Size: $size")
+
+                    val variantInfo = if (variantDetails.isNotEmpty()) {
+                        " (${variantDetails.joinToString(", ")})"
+                    } else {
+                        ""
+                    }
+
+                    "📦 ${productName}${variantInfo} - ${decimalFormat.format(unitPrice)} × ${quantity} = ${decimalFormat.format(totalPrice)}"
                 }
         } else {
             "تفاصيل الطلب غير متوفرة"
@@ -402,7 +520,7 @@ class OrderDetailActivity : AppCompatActivity() {
         💰 المجموع النهائي مع التوصيل: ${decimalFormat.format(order.totalAmount)}
         ━━━━━━━━━━━━━━  
         📩 *يرجى الرد بـ "تم" لتأكيد طلبك.
-    """.trimIndent()
+        """.trimIndent()
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

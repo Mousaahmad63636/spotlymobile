@@ -5,10 +5,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.media.RingtoneManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.spotlylb.admin.R
@@ -29,7 +31,15 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         // Check if message contains a notification payload
         remoteMessage.notification?.let {
             Log.d(TAG, "Message Notification Body: ${it.body}")
-            sendNotification(it.title ?: "New Order", it.body ?: "You have received a new order!")
+
+            // Check for order-related notifications
+            val title = it.title ?: "New Order"
+            val body = it.body ?: "You have received a new order!"
+
+            // Try to extract order ID from data payload if present
+            val orderId = remoteMessage.data["orderId"]
+
+            sendNotification(title, body, orderId)
         }
 
         // Check if message contains data payload
@@ -40,9 +50,33 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             val title = remoteMessage.data["title"] ?: "New Order"
             val message = remoteMessage.data["message"] ?: "You have received a new order!"
             val orderId = remoteMessage.data["orderId"]
+            val notificationType = remoteMessage.data["type"] ?: "order"
 
-            // Send notification with order details
-            sendNotification(title, message, orderId)
+            // Process different notification types
+            when (notificationType) {
+                "new_order" -> {
+                    // Handle new order notification
+                    sendNotification(title, message, orderId)
+
+                    // Broadcast to refresh orders if the app is in the foreground
+                    val refreshIntent = Intent("com.spotlylb.admin.NEW_ORDER")
+                    orderId?.let { refreshIntent.putExtra("orderId", it) }
+                    sendBroadcast(refreshIntent)
+                }
+                "order_status_update" -> {
+                    // Handle status update notification
+                    sendNotification(title, message, orderId)
+
+                    // Broadcast status update
+                    val updateIntent = Intent("com.spotlylb.admin.ORDER_UPDATED")
+                    orderId?.let { updateIntent.putExtra("orderId", it) }
+                    sendBroadcast(updateIntent)
+                }
+                else -> {
+                    // Default notification handling
+                    sendNotification(title, message, orderId)
+                }
+            }
         }
     }
 
@@ -50,7 +84,26 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         Log.d(TAG, "Refreshed token: $token")
         sendRegistrationToServer(token)
     }
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                getString(R.string.order_notification_channel_id),
+                "Order Notifications",
+                NotificationManager.IMPORTANCE_HIGH // This is important for notifications to alert
+            ).apply {
+                description = "Notifications for new and updated orders"
+                enableLights(true)
+                lightColor = Color.RED
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 500, 250, 500)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC // Corrected reference
+            }
 
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+            Log.d(TAG, "Notification channel created with ID: ${channel.id}")
+        }
+    }
     private fun sendRegistrationToServer(token: String) {
         val sessionManager = SessionManager(this)
         if (sessionManager.isLoggedIn()) {
@@ -58,9 +111,10 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 try {
                     val authToken = sessionManager.getAuthToken() ?: return@launch
                     val apiService = ApiClient.getAuthenticatedApiService(authToken)
-                    // Call your API endpoint to update the FCM token
-                    // This endpoint needs to be implemented
-                    // apiService.updateFcmToken(mapOf("fcmToken" to token))
+
+                    // Uncomment this line
+                    val response = apiService.updateFcmToken(mapOf("fcmToken" to token))
+
                     Log.d(TAG, "FCM token updated successfully")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to update FCM token", e)
@@ -72,18 +126,25 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     private fun sendNotification(title: String, messageBody: String, orderId: String? = null) {
         val intent = Intent(this, OrdersActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            // Pass order ID if available to open specific order
-            orderId?.let { putExtra("OPEN_ORDER_ID", it) }
+
+            // If we have an order ID, set it to open that specific order
+            if (orderId != null) {
+                putExtra("OPEN_ORDER_ID", orderId)
+            }
         }
 
+        // Make the PendingIntent unique for different notifications
+        val requestCode = if (orderId != null) orderId.hashCode() else System.currentTimeMillis().toInt()
+
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
+            this, requestCode, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         val channelId = getString(R.string.order_notification_channel_id)
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
+        // Create a more informative notification with appropriate styling
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_orders)
             .setContentTitle(title)
@@ -92,6 +153,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setSound(defaultSoundUri)
             .setContentIntent(pendingIntent)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(messageBody))
+
+        // Set notification color if available
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            notificationBuilder.color = getColor(R.color.purple_500)
+        }
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -104,13 +171,15 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             ).apply {
                 description = "Notifications for new and updated orders"
                 enableLights(true)
+                lightColor = Color.BLUE
                 enableVibration(true)
+                setShowBadge(true)
             }
             notificationManager.createNotificationChannel(channel)
         }
 
         // Use a unique ID for each notification
-        val notificationId = System.currentTimeMillis().toInt()
+        val notificationId = if (orderId != null) orderId.hashCode() else System.currentTimeMillis().toInt()
         notificationManager.notify(notificationId, notificationBuilder.build())
     }
 }

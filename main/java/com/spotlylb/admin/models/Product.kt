@@ -8,7 +8,10 @@ data class Product(
     val _id: String,
     val name: String,
     val price: Double,
-    val images: List<String>? = null
+    val images: List<String>? = null,
+    // Add the missing properties
+    val colors: List<String>? = null,
+    val sizes: List<String>? = null
 ) : Parcelable {
 
     fun getFirstImageUrl(): String {
