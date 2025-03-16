@@ -21,6 +21,7 @@ import com.spotlylb.admin.utils.ToastUtil
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.IntentFilter
+import android.os.Build
 
 class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppliedListener {
     companion object {
@@ -103,14 +104,22 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
         loadOrders()
         handleNotificationIntent(intent)
 
-        // Register the broadcast receiver
+        // Register the broadcast receiver using explicit broadcast actions
+        // Define our custom intent filter with our app-specific actions
         val filter = IntentFilter().apply {
             addAction("com.spotlylb.admin.NEW_ORDER")
             addAction("com.spotlylb.admin.ORDER_UPDATED")
         }
-        registerReceiver(orderUpdateReceiver, filter)
-    }
 
+        // Register differently based on Android version
+        if (Build.VERSION.SDK_INT >= 33) { // Android 13 Tiramisu
+            // Use the explicit flag value 4 (RECEIVER_NOT_EXPORTED) for clarity
+            registerReceiver(orderUpdateReceiver, filter, 4)
+        } else {
+            // For Android 12 and below, no flag is needed
+            registerReceiver(orderUpdateReceiver, filter)
+        }
+    }
 
     // Add the onDestroy method to unregister the receiver
     override fun onDestroy() {
