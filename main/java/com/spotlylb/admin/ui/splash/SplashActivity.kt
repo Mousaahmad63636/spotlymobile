@@ -1,3 +1,4 @@
+// Update main/java/com/spotlylb/admin/ui/splash/SplashActivity.kt
 package com.spotlylb.admin.ui.splash
 
 import android.annotation.SuppressLint
@@ -13,7 +14,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.spotlylb.admin.R
 import com.spotlylb.admin.ui.auth.LoginActivity
-import com.spotlylb.admin.ui.orders.OrdersActivity
+import com.spotlylb.admin.ui.dashboard.DashboardActivity
 import com.spotlylb.admin.utils.SessionManager
 
 @SuppressLint("CustomSplashScreen")
@@ -32,7 +33,7 @@ class SplashActivity : AppCompatActivity() {
         Handler(Looper.getMainLooper()).postDelayed({
             // Check if user is logged in and is admin
             if (sessionManager.isLoggedIn()) {
-                startActivity(Intent(this, OrdersActivity::class.java))
+                startActivity(Intent(this, DashboardActivity::class.java))
             } else {
                 startActivity(Intent(this, LoginActivity::class.java))
             }
