@@ -5,7 +5,7 @@ import com.spotlylb.admin.models.AuthRequest
 import com.spotlylb.admin.models.AuthResponse
 import com.spotlylb.admin.models.Order
 import com.spotlylb.admin.models.StatusUpdateRequest
-import com.spotlylb.admin.models.User // Add this import
+import com.spotlylb.admin.models.User
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -33,7 +33,6 @@ interface ApiService {
     @PUT("users/fcm-token")
     suspend fun updateFcmToken(@Body request: Map<String, String>): Response<Map<String, String>>
 
-    // Add this new endpoint
     @GET("users/profile")
     suspend fun getProfile(): Response<User>
 }

@@ -29,6 +29,7 @@ class OrderDetailActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_ORDER = "extra_order"
+        const val EXTRA_ORDER_ID = "extra_order_id" // Add this constant
         private const val TAG = "OrderDetailActivity"
     }
 
@@ -44,7 +45,15 @@ class OrderDetailActivity : AppCompatActivity() {
 
         sessionManager = SessionManager(this)
 
-        // Get order from intent
+        // Check if we have a direct order ID from notification
+        val orderId = intent.getStringExtra(EXTRA_ORDER_ID)
+        if (orderId != null) {
+            binding.progressBar.visibility = View.VISIBLE
+            loadOrderById(orderId)
+            return
+        }
+
+        // Existing code for getting order from intent
         order = intent.getParcelableExtra(EXTRA_ORDER) ?: run {
             ToastUtil.showShort(this, "Order not found")
             finish()
@@ -56,6 +65,47 @@ class OrderDetailActivity : AppCompatActivity() {
         setupToolbar()
         displayOrderDetails()
         setupActionButtons()
+    }
+
+    private fun loadOrderById(orderId: String) {
+        lifecycleScope.launch {
+            try {
+                val token = sessionManager.getAuthToken() ?: ""
+                if (token.isEmpty()) {
+                    ToastUtil.showShort(this@OrderDetailActivity, "Authentication token missing")
+                    binding.progressBar.visibility = View.GONE
+                    finish()
+                    return@launch
+                }
+
+                val apiService = ApiClient.getAuthenticatedApiService(token)
+                val response = apiService.getOrderById(orderId)
+
+                if (response.isSuccessful && response.body() != null) {
+                    order = response.body()!!
+
+                    runOnUiThread {
+                        binding.progressBar.visibility = View.GONE
+                        setupToolbar()
+                        displayOrderDetails()
+                        setupActionButtons()
+                    }
+                } else {
+                    runOnUiThread {
+                        binding.progressBar.visibility = View.GONE
+                        ToastUtil.showShort(this@OrderDetailActivity, "Failed to load order details")
+                        finish()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading order by ID", e)
+                runOnUiThread {
+                    binding.progressBar.visibility = View.GONE
+                    ToastUtil.showShort(this@OrderDetailActivity, "Error: ${e.message}")
+                    finish()
+                }
+            }
+        }
     }
 
     private fun setupToolbar() {

@@ -22,6 +22,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.IntentFilter
 import android.os.Build
+import androidx.lifecycle.lifecycleScope
+import com.spotlylb.admin.api.ApiClient
+import kotlinx.coroutines.launch
 
 class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppliedListener {
     companion object {
@@ -113,8 +116,8 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
 
         // Register differently based on Android version
         if (Build.VERSION.SDK_INT >= 33) { // Android 13 Tiramisu
-            // Use the explicit flag value 4 (RECEIVER_NOT_EXPORTED) for clarity
-            registerReceiver(orderUpdateReceiver, filter, 4)
+            // Use the named constant instead of raw value 4
+            registerReceiver(orderUpdateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             // For Android 12 and below, no flag is needed
             registerReceiver(orderUpdateReceiver, filter)
@@ -144,16 +147,35 @@ class OrdersActivity : AppCompatActivity(), OrderFilterDialogFragment.FilterAppl
         if (orderId != null) {
             Log.d(TAG, "Opening order from notification: $orderId")
 
-            // Wait for orders to load, then find and open the specified order
-            viewModel.orders.observe(this) { result ->
-                if (result is OrdersViewModel.OrdersResult.Success) {
-                    // Find the order with matching ID
-                    val order = result.orders.find { it._id == orderId || it.orderId == orderId }
-                    order?.let {
-                        // Once found, remove this observer and open the order
-                        viewModel.orders.removeObservers(this)
-                        navigateToOrderDetail(it, -1)
+            // Show a toast to indicate we're loading the order
+            ToastUtil.showShort(this, "Loading order details...")
+
+            // Start a loading indicator
+            binding.progressBar.visibility = View.VISIBLE
+
+            lifecycleScope.launch {
+                try {
+                    val token = sessionManager.getAuthToken() ?: ""
+                    if (token.isEmpty()) {
+                        binding.progressBar.visibility = View.GONE
+                        return@launch
                     }
+
+                    val apiService = ApiClient.getAuthenticatedApiService(token)
+                    val response = apiService.getOrderById(orderId)
+
+                    if (response.isSuccessful && response.body() != null) {
+                        val order = response.body()!!
+                        binding.progressBar.visibility = View.GONE
+                        navigateToOrderDetail(order, -1)
+                    } else {
+                        binding.progressBar.visibility = View.GONE
+                        ToastUtil.showShort(this@OrdersActivity, "Failed to load order details")
+                    }
+                } catch (e: Exception) {
+                    binding.progressBar.visibility = View.GONE
+                    Log.e(TAG, "Error loading order from notification", e)
+                    ToastUtil.showShort(this@OrdersActivity, "Error loading order: ${e.message}")
                 }
             }
         }

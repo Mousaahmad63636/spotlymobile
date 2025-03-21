@@ -1,3 +1,4 @@
+// main/java/com/spotlylb/admin/services/MyFirebaseMessagingService.kt
 package com.spotlylb.admin.services
 
 import android.app.NotificationChannel
@@ -24,6 +25,12 @@ import kotlinx.coroutines.launch
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private val TAG = "FCMService"
+
+    override fun onCreate() {
+        super.onCreate()
+        // Create notification channel when service is created
+        createNotificationChannel()
+    }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         Log.d(TAG, "From: ${remoteMessage.from}")
@@ -84,6 +91,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         Log.d(TAG, "Refreshed token: $token")
         sendRegistrationToServer(token)
     }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -96,7 +104,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 lightColor = Color.RED
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 500, 250, 500)
-                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC // Corrected reference
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
 
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -104,6 +112,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             Log.d(TAG, "Notification channel created with ID: ${channel.id}")
         }
     }
+
     private fun sendRegistrationToServer(token: String) {
         val sessionManager = SessionManager(this)
         if (sessionManager.isLoggedIn()) {
@@ -112,7 +121,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                     val authToken = sessionManager.getAuthToken() ?: return@launch
                     val apiService = ApiClient.getAuthenticatedApiService(authToken)
 
-                    // Uncomment this line
                     val response = apiService.updateFcmToken(mapOf("fcmToken" to token))
 
                     Log.d(TAG, "FCM token updated successfully")
@@ -161,22 +169,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        // Create notification channel for Android O and above
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "Order Notifications",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifications for new and updated orders"
-                enableLights(true)
-                lightColor = Color.BLUE
-                enableVibration(true)
-                setShowBadge(true)
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
 
         // Use a unique ID for each notification
         val notificationId = if (orderId != null) orderId.hashCode() else System.currentTimeMillis().toInt()
