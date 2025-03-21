@@ -13,6 +13,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.spotlylb.admin.R
 import com.spotlylb.admin.api.ApiClient
 import com.spotlylb.admin.databinding.ActivityLoginBinding
+import com.spotlylb.admin.ui.dashboard.DashboardActivity
 import com.spotlylb.admin.ui.orders.OrdersActivity
 import com.spotlylb.admin.utils.SessionManager
 import com.spotlylb.admin.utils.ToastUtil
@@ -63,7 +64,7 @@ class LoginActivity : AppCompatActivity() {
                     android.os.Handler(Looper.getMainLooper()).postDelayed({
                         verifyFcmToken()
                     }, 3000) // 3 second delay to ensure token is processed
-                    navigateToOrdersScreen()
+                    navigateToDashboard()  // Update this line
                 }
                 is LoginViewModel.LoginResult.Error -> {
                     binding.progressBar.visibility = View.GONE
@@ -151,8 +152,9 @@ class LoginActivity : AppCompatActivity() {
             }
         }
     }
-    private fun navigateToOrdersScreen() {
-        val intent = Intent(this, OrdersActivity::class.java)
+
+    private fun navigateToDashboard() {
+        val intent = Intent(this, DashboardActivity::class.java)
         startActivity(intent)
         finish()
     }
