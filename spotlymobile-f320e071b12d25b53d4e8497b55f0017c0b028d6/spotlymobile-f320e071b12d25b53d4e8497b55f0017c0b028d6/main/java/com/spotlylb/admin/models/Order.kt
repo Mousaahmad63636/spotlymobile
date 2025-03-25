@@ -3,10 +3,8 @@ package com.spotlylb.admin.models
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import java.util.TimeZone
 
 @Parcelize
 data class Order(
@@ -16,7 +14,7 @@ data class Order(
     val customerEmail: String?,
     val phoneNumber: String,
     val address: String,
-    val products: List<OrderProduct>?,
+    val products: List<OrderProduct>?, // Make nullable
     val subtotal: Double,
     val shippingFee: Double,
     val totalAmount: Double,
@@ -32,18 +30,9 @@ data class Order(
         val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
         val outputFormat = SimpleDateFormat("MMM dd, yyyy - hh:mm a", Locale.getDefault())
 
-        // Set the input format timezone to UTC
-        inputFormat.timeZone = TimeZone.getTimeZone("UTC")
-
         return try {
             val date = inputFormat.parse(createdAt)
-
-            // Subtract 2 hours from the parsed date
-            val calendar = Calendar.getInstance()
-            calendar.time = date ?: Date()
-            calendar.add(Calendar.HOUR_OF_DAY, -0)
-
-            outputFormat.format(calendar.time)
+            outputFormat.format(date ?: Date())
         } catch (e: Exception) {
             createdAt
         }

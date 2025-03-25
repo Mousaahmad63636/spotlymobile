@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="RoundedImageView" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">8dp</item>
+    </style>
+
+    <style name="Theme.SplashScreen" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="android:windowBackground">@color/purple_700</item>
+        <item name="android:statusBarColor">@color/purple_700</item>
+        <item name="android:navigationBarColor">@color/purple_700</item>
+    </style>
+</resources>
